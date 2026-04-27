@@ -106,7 +106,7 @@ export default function AddPropertyModal({ isOpen, onClose }: { isOpen: boolean,
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-accent text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-accent/90 shadow-lg shadow-accent/20 transition-all disabled:opacity-50"
+            className="w-full bg-accent text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 hover:bg-accent/90 shadow-lg shadow-accent/20 transition-all disabled:opacity-50 cursor-pointer"
           >
             {loading && <Loader2 className="animate-spin" size={20} />}
             {loading ? "AI is processing brochure..." : "Create Listing Knowledge"}

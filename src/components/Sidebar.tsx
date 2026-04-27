@@ -14,7 +14,8 @@ export default function Sidebar() {
     { icon: <LayoutDashboard size={20} />, label: "Dashboard", path: "/" },
     { icon: <MessageSquare size={20} />, label: "Conversations", path: "/conversations" },
     { icon: <Users size={20} />, label: "Leads", path: "/leads" },
-    { icon: <Home size={20} />, label: "Listings", path: "/listings" },
+    { icon: <Home size={20} />, label: "Broucher Manager", path: "/listings" },
+    { icon: <Home size={20} />, label: "Inventory Manager", path: "/inventory" },
     { icon: <Settings size={20} />, label: "Settings", path: "/settings" },
   ];
 
