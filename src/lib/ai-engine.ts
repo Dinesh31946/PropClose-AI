@@ -47,70 +47,84 @@ export async function generateAIResponse(leadId: string, userMessage: string, pr
   const supabase = createClient();
 
   try {
-    // 1. FETCH LEAD CONTEXT (Memory Fetch)
-    // Hum database se lead ki detail nikaal rahe hain taaki humein pata chale woh kiske liye aaya tha
-    const { data: lead } = await supabase
-      .from('leads')
-      .select('name, property_id') // Yahan agar tumne table mein 'interested_in' column banaya hai toh use select karo
-      .eq('id', leadId)
-      .single();
-
-    // Note: Agar tumne database mein 'interested_in' store nahi kiya hai, 
-    // toh hum chat history ke pehle message se context nikaal sakte hain.
-    const { data: inventory } = await supabase.from('unit_inventory').select('*').eq('project_id', propertyId);
-    const { data: property } = await supabase.from('properties').select('name, description').eq('id', propertyId).single();
-    const { data: history } = await supabase.from('chat_history').select('role, content').eq('lead_id', leadId).order('created_at', { ascending: false }).limit(10);
-
-    const inventoryText = (inventory as Unit[])?.map((u: Unit) => 
-      `- ${u.unit_name}: ${u.configuration}, Floor ${u.floor_no}, Size: ${u.carpet_area}, Price: ${u.price}, Status: ${u.status}`
-    ).join('\n') || "No specific unit inventory found.";
+    // 1. FETCH BASIC CONTEXT (Lead & History)
+    const { data: lead } = await supabase.from('leads').select('name').eq('id', leadId).single();
+    const { data: property } = await supabase.from('properties').select('name').eq('id', propertyId).single();
+    const { data: history } = await supabase.from('chat_history')
+      .select('role, content')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false })
+      .limit(6);
 
     const chatContext = history?.reverse().map((msg: any) => ({ role: msg.role, content: msg.content })) || [];
 
-    // 2. THE MASTER PROMPT (With Permanent Context)
+    // 2. SEARCH ENGINE CALL (Internal Vector Search)
+    // Hum userMessage ko vector mein badal kar relevant data layenge
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: userMessage,
+    });
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+
+    // Parallel Database Search
+    const [unitResult, chunkResult] = await Promise.all([
+      supabase.rpc('match_units', { query_embedding: queryEmbedding, match_threshold: 0.3, match_count: 5 }),
+      supabase.rpc('match_chunks', { query_embedding: queryEmbedding, match_threshold: 0.3, match_count: 3 })
+    ]);
+
+    // Format for GPT (Lean & Mean)
+    const contextUnits = unitResult.data?.map((u: any) => 
+      `- Unit ${u.unit_name}: ${u.ai_summary} (Confidence: ${Math.round(u.similarity * 100)}%)`
+    ).join('\n') || "No matching units found.";
+
+    const contextKnowledge = chunkResult.data?.map((c: any) => 
+      `- Info: ${c.content.replace(/[^\x20-\x7E]/g, '').substring(0, 500)}`
+    ).join('\n') || "No specific brochure details found.";
+
+    // 3. MASTER SYSTEM PROMPT (The Personality)
     const systemPrompt = `You are an elite Real Estate Consultant for "${property?.name}".
     
-    PRIMARY CONTEXT:
-    - Customer Name: ${lead?.name}
-    - Initial Interest: ${interestedIn} (CRITICAL: Always prioritize this specific unit/config).
+    CONTEXT DATA:
+    - Customer: ${lead?.name}
+    - Initial Interest: ${interestedIn}
     
-    INVENTORY DATA:
-    ${inventoryText}
+    RELEVANT INVENTORY (Live Data):
+    ${contextUnits}
     
-    BROCHURE DATA:
-    ${property?.description}
+    PROJECT KNOWLEDGE (Brochure):
+    ${contextKnowledge}
     
-    GUIDELINES (HUMAN-CENTRIC):
-    - PERSONALIZATION: ${lead?.name} ne "${interestedIn}" ke liye inquiry ki hai. Agar woh "iska price" ya "availability" puche, toh sirf usi specific unit ka jawab do jo unke interest se match karta hai. 
-    - NO ROBOTIC LISTS: Don't use bullet points ( - ) or "Rs." symbols excessively. Talk like you are chatting on WhatsApp. Use natural Hinglish.
-    - RELEVANCE: Do not list other 1BHK/2BHK options unless the user specifically says "show me more" or if their initial choice is sold out.
-    - TONE: Professional yet friendly. Instead of "Registration typically depends...", say "Registration ka exact calculation main hamare manager se confirm karwa ke batata hoon."
-    - FORMATTING: Avoid "\n\n" between every line. Keep it concise.
-    - HANDOFF: Use [HANDOFF_REQUIRED] only for legal/RERA/complex queries, and never show this tag to the user.`;
+    STRICT RULES:
+    1. ACCURACY: Sirf upar diye gaye data se jawab do. Agar data "Confidence" 40% se kam hai, toh kaho ki aap check karke batayenge.
+    2. HINGLISH: Talk like a professional Mumbai broker on WhatsApp. Use natural Hinglish.
+    3. NO LISTS: Don't give long tables. Be concise.
+    4. RENT/SALE: Data mein check karo ki listing Rent ki hai ya Sale ki aur usi hisab se baat karo.
+    5. HALLUCINATION: Agar info nahi hai, toh jhoot mat bolo. [HANDOFF_REQUIRED] use karo agar query complex hai.`;
 
-    // 3. AI Call
+    // 4. AI Call
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      messages: [{ role: "system", content: systemPrompt }, ...chatContext, { role: "user", content: userMessage }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...chatContext,
+        { role: "user", content: userMessage }
+      ],
+      temperature: 0.4, // Lower temperature for higher accuracy
     });
 
     const aiReply = completion.choices[0].message.content || "";
     const cleanReply = aiReply.replace(/\[HANDOFF_REQUIRED\]/g, '').trim();
 
-    console.log("------------------------------------------");
-    console.log(`🤖 AI REPLY TO LEAD ${leadId}:`);
-    console.log(cleanReply);
-    console.log("------------------------------------------");
-
-    // 4. Save to History
+    // 5. SAVE HISTORY
     await supabase.from('chat_history').insert([
         { lead_id: leadId, role: 'user', content: userMessage },
         { lead_id: leadId, role: 'assistant', content: cleanReply }
     ]);
 
     return cleanReply;
+
   } catch (error: any) {
     console.error("AI Engine Error:", error.message);
-    return "I'm checking that for you. One moment.";
+    return "Thoda technical issue hai, main ek minute mein batata hoon.";
   }
 }
