@@ -5,12 +5,7 @@ import {
   Database, Trash2, Edit3, 
   Search, Filter, Loader2, AlertCircle
 } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { createClient } from '@/lib/supabase';
 
 export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<'view' | 'upload'>('view');
@@ -24,6 +19,7 @@ export default function InventoryPage() {
   const fetchInventory = useCallback(async () => {
     setIsLoading(true);
     try {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from('unit_inventory')
         .select('*, properties (name)')
@@ -49,6 +45,7 @@ export default function InventoryPage() {
     if (!confirm("Are you sure you want to delete this unit?")) return;
     
     try {
+      const supabase = createClient();
       const { error } = await supabase.from('unit_inventory').delete().eq('id', id);
       if (error) throw error;
       // UI update bina refresh kiye
@@ -62,6 +59,7 @@ export default function InventoryPage() {
   const handleToggleStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'Available' ? 'Sold' : 'Available';
     try {
+      const supabase = createClient();
       const { error } = await supabase
         .from('unit_inventory')
         .update({ status: newStatus })
@@ -83,6 +81,7 @@ export default function InventoryPage() {
     if (newPrice === null || newPrice === currentPrice) return;
 
     try {
+      const supabase = createClient();
       const { error } = await supabase
         .from('unit_inventory')
         .update({ price: newPrice })

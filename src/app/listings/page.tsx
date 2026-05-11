@@ -75,6 +75,7 @@ export default function ListingsPage() {
         {properties.map((prop) => (
           <PropertyCard 
             key={prop.id} 
+            id={prop.id}
             name={prop.name} 
             location={prop.location || "Location Pending"} 
             price={prop.price || "Contact for Price"} 
