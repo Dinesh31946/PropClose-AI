@@ -1,11 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { getOpenAIClient } from '@/lib/openai';
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Admin access for updates
-);
+import { getSupabaseAdminClient } from '@/lib/supabase-admin';
 
 export async function POST(req: Request) {
   try {
@@ -13,6 +9,7 @@ export async function POST(req: Request) {
     if (authError) return authError;
 
     const openai = getOpenAIClient();
+    const supabase = getSupabaseAdminClient();
     // 1. Fetch properties that don't have embeddings yet
     const { data: properties, error: fetchError } = await supabase
       .from('properties')
