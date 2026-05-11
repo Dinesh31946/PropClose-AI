@@ -18,6 +18,21 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+## Admin authentication
+
+Admin pages and sensitive API routes require credentials. Configure either:
+
+```bash
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-me
+```
+
+or, for server-to-server calls:
+
+```bash
+ADMIN_API_TOKEN=change-me
+```
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

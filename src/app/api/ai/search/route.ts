@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { requireAdmin } from '@/lib/admin-auth';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const supabase = createClient(
@@ -10,6 +11,9 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
+    const authError = requireAdmin(req);
+    if (authError) return authError;
+
     const { query } = await req.json();
 
     // 1. Vector Generation

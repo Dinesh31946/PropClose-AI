@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { requireAdmin } from '@/lib/admin-auth';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
+    const authError = requireAdmin(req);
+    if (authError) return authError;
+
     const { headers } = await req.json();
 
     const systemPrompt = `You are a real estate data expert. 

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 import PDFParser from 'pdf2json';
 import OpenAI from 'openai';
+import { requireAdmin } from '@/lib/admin-auth';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -16,6 +17,9 @@ const chunkText = (text: string, size: number) => {
 
 export async function POST(req: Request) {
   try {
+    const authError = requireAdmin(req);
+    if (authError) return authError;
+
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const title = formData.get('title') as string;
