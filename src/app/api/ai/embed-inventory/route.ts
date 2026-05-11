@@ -1,9 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { requireAdmin } from '@/lib/admin-auth';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { getOpenAIClient } from '@/lib/openai';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! // Admin key chahiye update karne ke liye
@@ -14,6 +12,7 @@ export async function POST(req: Request) {
     const authError = requireAdmin(req);
     if (authError) return authError;
 
+    const openai = getOpenAIClient();
     // 1. Database se wo units uthao jinka embedding abhi tak nahi bana hai
     const { data: units, error: fetchError } = await supabase
       .from('unit_inventory')

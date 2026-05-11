@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase';
-import OpenAI from 'openai';
+import { getOpenAIClient } from '@/lib/openai';
 
 // TypeScript Types: Taki code mein red lines na aayein
 interface Unit {
@@ -15,8 +15,6 @@ interface ChatMessage {
   role: string;
   content: string;
 }
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function sendInitialGreeting(leadName: string, propertyId: string, interestedIn: string, leadId: string) {
   const supabase = createClient();
@@ -47,6 +45,8 @@ export async function generateAIResponse(leadId: string, userMessage: string, pr
   const supabase = createClient();
 
   try {
+    const openai = getOpenAIClient();
+
     // 1. FETCH BASIC CONTEXT (Lead & History)
     const { data: lead } = await supabase.from('leads').select('name').eq('id', leadId).single();
     const { data: property } = await supabase.from('properties').select('name').eq('id', propertyId).single();

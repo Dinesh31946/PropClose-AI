@@ -1,9 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { requireAdmin } from '@/lib/admin-auth';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { getOpenAIClient } from '@/lib/openai';
 
 const formatPrice = (value: any, headerName: string): string | null => {
   if (value === null || value === undefined || value === "") return null;
@@ -26,6 +24,7 @@ export async function POST(req: Request) {
     const authError = requireAdmin(req);
     if (authError) return authError;
 
+    const openai = getOpenAIClient();
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
