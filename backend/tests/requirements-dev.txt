@@ -1,0 +1,6 @@
+# Test-only dependencies. Install with:
+#   .\backend\venv\Scripts\pip.exe install -r backend\tests\requirements-dev.txt
+pytest>=8.0
+httpx>=0.27          # required by fastapi.testclient
+psycopg[binary]>=3.2 # used by tools/apply_migration.py to run DDL
+pyjwt>=2.8           # used by smoke_jwt.py to mint test tokens

@@ -3,6 +3,12 @@ import { useState } from "react";
 import { X, Upload, Loader2, MapPin, IndianRupee } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+const DEFAULT_BACKEND_BASE_URL = "http://localhost:8000";
+
+function getBackendBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_API_URL || DEFAULT_BACKEND_BASE_URL).replace(/\/+$/, "");
+}
+
 export default function AddPropertyModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -27,7 +33,9 @@ export default function AddPropertyModal({ isOpen, onClose }: { isOpen: boolean,
     data.append("price", formData.price);
 
     try {
-      const response = await fetch("/api/ingest", { method: "POST", body: data });
+      // Data integrity is priority #1 for this AI Lead Engine; strict matching prevents cross-project data leaks.
+      // Ingest payload FormData keys (file/title/location/price) FastAPI model ke saath aligned rehne chahiye.
+      const response = await fetch(`${getBackendBaseUrl()}/api/v1/ingest`, { method: "POST", body: data });
       if (response.ok) {
         alert("Knowledge Base Updated Successfully!");
         router.refresh();

@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+supabase
+pydantic
+langchain
+openai
+python-multipart
+pypdf
+httpx
+pyjwt

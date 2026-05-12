@@ -68,8 +68,17 @@ export async function generateAIResponse(leadId: string, userMessage: string, pr
 
     // Parallel Database Search
     const [unitResult, chunkResult] = await Promise.all([
-      supabase.rpc('match_units', { query_embedding: queryEmbedding, match_threshold: 0.3, match_count: 5 }),
-      supabase.rpc('match_chunks', { query_embedding: queryEmbedding, match_threshold: 0.3, match_count: 3 })
+      supabase.rpc('match_units', { 
+        query_embedding: queryEmbedding, 
+        match_threshold: 0.25, 
+        match_count: 3, // Kam results taaki focus bana rahe
+        // Filter logic: Humein SQL function mein property_id filter add karna hoga
+      }),
+      supabase.rpc('match_chunks', { 
+        query_embedding: queryEmbedding, 
+        match_threshold: 0.25, 
+        match_count: 2 
+      })
     ]);
 
     // Format for GPT (Lean & Mean)
@@ -77,29 +86,32 @@ export async function generateAIResponse(leadId: string, userMessage: string, pr
       `- Unit ${u.unit_name}: ${u.ai_summary} (Confidence: ${Math.round(u.similarity * 100)}%)`
     ).join('\n') || "No matching units found.";
 
-    const contextKnowledge = chunkResult.data?.map((c: any) => 
-      `- Info: ${c.content.replace(/[^\x20-\x7E]/g, '').substring(0, 500)}`
-    ).join('\n') || "No specific brochure details found.";
+    // const contextKnowledge = chunkResult.data?.map((c: any) => 
+    //   `- Info: ${c.content.replace(/[^\x20-\x7E]/g, '').substring(0, 500)}`
+    // ).join('\n') || "No specific brochure details found.";
 
     // 3. MASTER SYSTEM PROMPT (The Personality)
-    const systemPrompt = `You are an elite Real Estate Consultant for "${property?.name}".
-    
-    CONTEXT DATA:
-    - Customer: ${lead?.name}
-    - Initial Interest: ${interestedIn}
-    
-    RELEVANT INVENTORY (Live Data):
-    ${contextUnits}
-    
-    PROJECT KNOWLEDGE (Brochure):
-    ${contextKnowledge}
-    
-    STRICT RULES:
-    1. ACCURACY: Sirf upar diye gaye data se jawab do. Agar data "Confidence" 40% se kam hai, toh kaho ki aap check karke batayenge.
-    2. HINGLISH: Talk like a professional Mumbai broker on WhatsApp. Use natural Hinglish.
-    3. NO LISTS: Don't give long tables. Be concise.
-    4. RENT/SALE: Data mein check karo ki listing Rent ki hai ya Sale ki aur usi hisab se baat karo.
-    5. HALLUCINATION: Agar info nahi hai, toh jhoot mat bolo. [HANDOFF_REQUIRED] use karo agar query complex hai.`;
+    const systemPrompt = `
+      You are the Dedicated Sales Expert for "${property?.name}". 
+      
+      CORE RULE: 
+      - Your ONLY objective is to book a SITE VISIT for "${property?.name}".
+      - DO NOT suggest any other properties or projects unless the user explicitly asks for "other options" or "different locations".
+      - If the user's budget is a bit low, explain the VALUE of this property (Location, ROI, Amenities) instead of saying "No".
+      
+      CONTEXT:
+      - Lead Name: ${lead?.name}
+      - Interested In: ${interestedIn}
+      - Inventory Data: ${contextUnits}
+      
+      CONVERSATION STYLE:
+      - Short, professional, and Hinglish. 
+      - End EVERY response with a soft push for a site visit. 
+      - Example: "Aap kal afternoon mein site visit ke liye aa sakte hain? Main layout dikha dunga."
+      
+      BOOKING TRIGGER:
+      - If the user agrees to visit or gives a time, end the message with [SITE_VISIT_CONFIRMED].
+    `;
 
     // 4. AI Call
     const completion = await openai.chat.completions.create({
@@ -114,6 +126,13 @@ export async function generateAIResponse(leadId: string, userMessage: string, pr
 
     const aiReply = completion.choices[0].message.content || "";
     const cleanReply = aiReply.replace(/\[HANDOFF_REQUIRED\]/g, '').trim();
+
+    if (aiReply.includes('[SITE_VISIT_CONFIRMED]')) {
+      await supabase.from('leads').update({ 
+        status: 'Site Visit Scheduled',
+        needs_attention: true 
+      }).eq('id', leadId);
+    }
 
     // 5. SAVE HISTORY
     await supabase.from('chat_history').insert([
