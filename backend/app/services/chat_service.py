@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Dict, List
 
@@ -35,8 +36,25 @@ from app.rag.validators import (
     should_prioritize_inventory_fallback,
 )
 from app.schemas.chat import ChatRequest, ChatResponse, EvidenceItem
+from app.services.profiling_service import ProfilingService
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_profiling_data(raw: Any) -> Dict[str, Any]:
+    """Coerce DB ``profiling_data`` (jsonb or legacy string) to a mutable dict."""
+
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return dict(parsed) if isinstance(parsed, dict) else {}
+    return {}
 
 
 class ChatService:
@@ -56,6 +74,7 @@ class ChatService:
         self.embedder = Embedder(self.settings)
         self.retriever = Retriever(self.supabase, self.settings)
         self.generator = GroundedGenerator(self.settings)
+        self.profiling = ProfilingService(self.settings)
 
     def handle_chat(
         self,
@@ -90,6 +109,33 @@ class ChatService:
 
         lead = self.repo.get_lead(payload.lead_id, org_id) or {}
         history = self.repo.get_recent_history(payload.lead_id, org_id)
+
+        existing_profile = _normalize_profiling_data(lead.get("profiling_data"))
+        try:
+            extracted = self.profiling.extract_signals(
+                message=payload.message,
+                history=history,
+            )
+        except Exception:
+            logger.exception(
+                "[profiling] extract_signals failed lead_id=%s org_id=%s",
+                payload.lead_id,
+                org_id,
+            )
+            extracted = {}
+        merged_profile = self.profiling.merge_into_profile(existing_profile, extracted)
+        if merged_profile != existing_profile:
+            try:
+                self.repo.update_lead_profiling_data(
+                    payload.lead_id, org_id, merged_profile
+                )
+            except Exception:
+                logger.exception(
+                    "[profiling] update_lead_profiling_data failed lead_id=%s org_id=%s",
+                    payload.lead_id,
+                    org_id,
+                )
+        lead = {**lead, "profiling_data": merged_profile}
 
         payload_pid = (payload.property_id or "").strip()
         lead_pid_raw = lead.get("property_id")
@@ -313,6 +359,10 @@ class ChatService:
             matched_unit_fact_lock=matched_unit_lock,
         )
         history_for_llm = sanitize_history_for_llm(history)
+        profile_gap_key: str | None = self.profiling.select_next_missing_key(merged_profile)
+        if urgent_escalation or human_callback:
+            profile_gap_key = None
+
         generated_reply = self.generator.generate(
             property_name=property_name,
             lead_name=lead.get("name", "Customer"),
@@ -328,6 +378,7 @@ class ChatService:
             whatsapp_channel=whatsapp_channel,
             display_phone_e164=display_phone,
             human_callback_signal=human_callback,
+            profile_gap_key=profile_gap_key,
         )
         final_reply = enforce_sales_closer_policy(generated_reply)
 

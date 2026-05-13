@@ -127,3 +127,11 @@ class ChatRepository:
         self.client.table("leads").update({"needs_attention": True}).eq(
             "org_id", org_id
         ).eq("id", lead_id).execute()
+
+    def update_lead_profiling_data(
+        self, lead_id: str, org_id: str, profiling_data: Dict[str, Any]
+    ) -> None:
+        """Persist progressive-profiling JSON (tenant-scoped)."""
+        self.client.table("leads").update({"profiling_data": profiling_data}).eq(
+            "org_id", org_id
+        ).eq("id", lead_id).execute()

@@ -31,6 +31,8 @@ from app.services import automation_service as automation_module
 from app.services import ingestion_service as ingestion_module
 from app.services.chat_service import ChatService
 
+from tests.helpers_chat_service import attach_chat_service_profiling_stub
+
 # Stable test tenant — must match the X-Org-Id header on every request.
 TEST_ORG_ID = "11111111-1111-1111-1111-111111111111"
 TENANT_HEADERS = {"X-Org-Id": TEST_ORG_ID}
@@ -366,6 +368,8 @@ def test_chat_service_uses_brochure_chunk_for_price_question(
     service.generator = MagicMock()
     service.generator.generate.side_effect = fake_generate
 
+    attach_chat_service_profiling_stub(service)
+
     request = ChatRequest(
         lead_id="lead-1",
         property_id="prop-1",
@@ -417,6 +421,8 @@ def test_chat_service_falls_back_when_no_brochure_evidence(
 
     service.retriever = MagicMock()
     service.retriever.retrieve.return_value = {"units": [], "chunks": []}
+
+    attach_chat_service_profiling_stub(service)
 
     service.generator = MagicMock()
     service.generator.generate.side_effect = AssertionError(

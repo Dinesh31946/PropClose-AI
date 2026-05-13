@@ -43,6 +43,8 @@ from app.rag.retriever import Retriever
 from app.schemas.chat import ChatRequest
 from app.services.chat_service import ChatService
 
+from tests.helpers_chat_service import attach_chat_service_profiling_stub
+
 ORG_ID = "11111111-1111-1111-1111-111111111111"
 PROPERTY_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 OTHER_PROPERTY_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
@@ -301,6 +303,8 @@ def _build_chat_service(
 
     service.generator = MagicMock()
     service.generator.generate.return_value = "The price is 1.85 Cr."
+
+    attach_chat_service_profiling_stub(service)
 
     return service, service.retriever
 

@@ -25,6 +25,7 @@ class GroundedGenerator:
         whatsapp_channel: bool = False,
         display_phone_e164: str | None = None,
         human_callback_signal: bool = False,
+        profile_gap_key: str | None = None,
     ) -> str:
         # The system prompt enforces constrained generation:
         # answer only from evidence, never invent numbers, and avoid robotic repetition
@@ -113,6 +114,25 @@ arrange a call on **this WhatsApp number** or **the number they're messaging fro
 acknowledges you are arranging that human callback now (warm, confident). Do **not** reset the chat with a generic
 "How can I help?" opener — continue the same topic and answer from EVIDENCE in the same reply whenever possible."""
 
+        profile_gap_block = ""
+        gap_norm = (profile_gap_key or "").strip().lower()
+        _gap_topics = {
+            "budget": "their comfortable budget band (a rough range is fine)",
+            "timeline": "their purchase or move-in timeline",
+            "purpose": "whether this is mainly for self-use or investment",
+            "requirement": "the configuration they are looking for (e.g. 1BHK / 2BHK / shop)",
+        }
+        if gap_norm in _gap_topics and not emergency_callback:
+            topic_hint = _gap_topics[gap_norm]
+            profile_gap_block = f"""
+**PROGRESSIVE PROFILING — satisfy first, then one soft ask (INTERNAL KEY: `{gap_norm}`):**
+• **First:** fully answer their **CURRENT** question using EVIDENCE — specifics, confident negatives where applicable, concise advisory tone.
+• **Only if** their question is substantively answered in this SAME reply (you gave usable content grounded in evidence — NOT a hollow deferral-only reply, apology-for-no-data-alone, unrelated dodge, or hand-off wording without addressing their ask),
+  append **exactly ONE** short sentence **at the very end** to gently learn about **{topic_hint}**.
+• If evidence was too thin, you bridged/deferred heavily, or you could not genuinely address what they asked, **omit** this profiling sentence this turn (**Satisfy → Profile**).
+
+Mirror their register (English / Hinglish); conversational, not interrogative; never prefix with "Question:" or bullet the ask."""
+
         urgency_block = ""
         if emergency_callback:
             urgency_block = """
@@ -174,6 +194,9 @@ Project in scope: {property_name}
 Lead name: {lead_name}
 Interested in: {interested_in}
 """
+
+        if profile_gap_block:
+            rules_block = rules_block + "\n\n" + profile_gap_block.strip()
 
         tail_parts = [rules_block.strip()]
         if channel_block:

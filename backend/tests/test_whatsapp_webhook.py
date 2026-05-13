@@ -1195,6 +1195,8 @@ def test_chat_service_low_confidence_respects_min_similarity_param(
     from app.schemas.chat import ChatRequest
     from app.services.chat_service import ChatService
 
+    from tests.helpers_chat_service import attach_chat_service_profiling_stub
+
     service = ChatService.__new__(ChatService)
     service.settings = Settings(
         supabase_url="x",
@@ -1228,6 +1230,8 @@ def test_chat_service_low_confidence_respects_min_similarity_param(
     service.generator.generate.side_effect = AssertionError(
         "generator must NOT be called when top_similarity < min_similarity"
     )
+
+    attach_chat_service_profiling_stub(service)
 
     request = ChatRequest(lead_id="lead-x", property_id="prop-x", message="hello")
     response = service.handle_chat(request, org_id=ORG_A_ID, min_similarity=0.7)
